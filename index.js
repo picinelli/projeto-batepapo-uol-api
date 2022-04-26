@@ -39,6 +39,37 @@ app.post("/participants", (req, res) => {
   }
 });
 
+app.get("/participants", (req, res) => {
+  res.status(200).send(users);
+});
+
+app.post("/messages", (req, res) => {
+  const now = Date.now();
+  const nowFormattted = dayjs(now).format("HH:mm:ss");
+  const body = req.body;
+  const thisUser = req.headers.user;
+  const newMessage = { ...body, from: thisUser, time: nowFormattted };
+  const userIsOnline = users.find((user) => user.name === thisUser);
+
+  const schema = Joi.object({
+    to: Joi.string().required(),
+    text: Joi.string().required(),
+    type: Joi.any().valid("message", "private_message"),
+    time: Joi.any(),
+    from: Joi.any().required(),
+  });
+  const { error, value } = schema.validate({
+    ...newMessage,
+    from: userIsOnline,
+  });
+
+  if (error === undefined) {
+    res.sendStatus(201);
+  } else {
+    res.status(422).send(error);
+  }
+});
+
 app.listen(5000, () => {
   console.log("Servidor Iniciado!");
 });
