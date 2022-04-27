@@ -87,6 +87,26 @@ app.get("/messages", (req, res) => {
   res.status(200).send(messagesSliced)
 })
 
+app.post("/status", (req, res) => {
+  const userHeader = req.headers.user
+  const userIsOnline = users.some(user => user.name === userHeader)
+
+  if(!userIsOnline) {
+    res.sendStatus(404)
+    return
+  } else {
+    const now = Date.now();
+    for(let i = 0; i < users.length; i++) {
+      if(users[i].name === userHeader) {
+        users[i] = {name: userHeader, lastStatus: now}
+        break
+      }
+    }
+    res.sendStatus(200)
+    return
+  }
+})
+
 app.listen(5000, () => {
   console.log("Servidor Iniciado!");
 });
