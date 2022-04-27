@@ -20,6 +20,7 @@ app.post("/participants", (req, res) => {
 
   if (userAlreadyExists) {
     res.status(409).send("User already exists");
+    return
   } else if (error === undefined) {
     const now = Date.now();
     users.push({ name: value.name, lastStatus: now });
@@ -32,10 +33,10 @@ app.post("/participants", (req, res) => {
     });
 
     res.status(201).send();
-    console.log(users);
-    console.log(messages);
+    return
   } else {
     res.status(422).send(error);
+    return
   }
 });
 
@@ -48,7 +49,7 @@ app.post("/messages", (req, res) => {
   const nowFormattted = dayjs(now).format("HH:mm:ss");
   const body = req.body;
   const thisUser = req.headers.user;
-  const newMessage = { ...body, from: thisUser, time: nowFormattted };
+  const newMessage = { from: thisUser, ...body, time: nowFormattted };
   const userIsOnline = users.find((user) => user.name === thisUser);
 
   const schema = Joi.object({
@@ -64,11 +65,27 @@ app.post("/messages", (req, res) => {
   });
 
   if (error === undefined) {
+    messages.push(newMessage)
     res.sendStatus(201);
+    return
   } else {
     res.status(422).send(error);
+    return
   }
 });
+
+app.get("/messages", (req, res) => {
+  const user = req.headers.user
+  const messagesAmount = parseInt(req.query.limit)
+  const haveAccessMessages = messages.filter((message) => {
+    if(user === message.to || user === message.from || message.to === "Todos") {
+      return message
+    } 
+  })
+  const messagesSliced = haveAccessMessages.slice(-messagesAmount)
+
+  res.status(200).send(messagesSliced)
+})
 
 app.listen(5000, () => {
   console.log("Servidor Iniciado!");
