@@ -4,22 +4,23 @@ import Joi from "joi";
 import dayjs from "dayjs";
 import { MongoClient, ObjectId } from "mongodb";
 import "dotenv/config";
+import { strict as assert } from "assert";
+import { stripHtml } from "string-strip-html";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const mongoClient = new MongoClient(process.env.MONGO_URI); // USAR O ENV !!!!!!!!!!!!!!!!!!!
+const mongoClient = new MongoClient(process.env.MONGO_URI);
 let db;
-
 const promise = mongoClient.connect().then(() => {
   db = mongoClient.db(process.env.MONGO_DB_URI);
 });
 
 app.post("/participants", async (req, res) => {
-  const { name } = req.body;
+  const name = sanitizeMe(req.body.name);
+
   try {
-    
     const participants = await db.collection("users").find({}).toArray();
     const userAlreadyExists = participants.find((user) => user.name === name);
     const schema = Joi.object({
@@ -28,11 +29,9 @@ app.post("/participants", async (req, res) => {
     const { error, value } = schema.validate({ name: name });
     if (userAlreadyExists) {
       res.status(409).send("User already exists");
-      
       return;
     } else if (error === undefined) {
       const now = Date.now();
-
       await db
         .collection("users")
         .insertOne({ name: value.name, lastStatus: now });
@@ -43,32 +42,25 @@ app.post("/participants", async (req, res) => {
         type: "status",
         time: dayjs(now).format("HH:mm:ss"),
       });
-
-      res.sendStatus(201);
-      
+      res.status(201).send({ name: name });
       return;
     } else {
-      
       res.status(422).send(error);
       return;
     }
   } catch (e) {
     console.error(e, "ERROR ON POST /PARTICIPANTS");
   }
-  
 });
 
 app.get("/participants", async (req, res) => {
   try {
-    
     const participants = await db.collection("users").find({}).toArray();
     res.status(200).send(participants);
-    
     return;
   } catch (e) {
     console.error(e, "ERROR ON GET /PARTICIPANTS");
     res.sendStatus(500);
-    
     return;
   }
 });
@@ -77,8 +69,14 @@ app.post("/messages", async (req, res) => {
   const now = Date.now();
   const nowFormattted = dayjs(now).format("HH:mm:ss");
   const body = req.body;
-  const thisUser = req.headers.user;
-  const newMessage = { from: thisUser, ...body, time: nowFormattted };
+  const thisUser = sanitizeMe(req.headers.user);
+  const newMessage = { 
+    from: thisUser, 
+    to: sanitizeMe(body.to),
+    time: nowFormattted,
+    type: sanitizeMe(body.type),
+    text: sanitizeMe(body.text)
+  };
 
   try {
     const users = await db.collection("users").find({}).toArray();
@@ -98,25 +96,25 @@ app.post("/messages", async (req, res) => {
     if (error === undefined) {
       await db.collection("messages").insertOne(newMessage);
       res.sendStatus(201);
-      
+
       return;
     } else {
       res.status(422).send(error);
-      
+
       return;
     }
   } catch (e) {
     console.error(e, "ERROR ON POST /MESSAGES");
-    
+
     return;
   }
 });
 
 app.get("/messages", async (req, res) => {
-  const user = req.headers.user;
+  let user = req.headers.user;
+  user = sanitizeMe(user);
   const messagesAmount = parseInt(req.query.limit);
   try {
-    
     const messages = await db.collection("messages").find({}).toArray();
     const haveAccessMessages = messages.filter((message) => {
       if (
@@ -129,26 +127,26 @@ app.get("/messages", async (req, res) => {
     });
     const messagesSliced = haveAccessMessages.slice(-messagesAmount);
     res.status(200).send(messagesSliced);
-    
+
     return;
   } catch (e) {
     console.error(e, "ERROR ON POST /MESSAGES");
     res.sendStatus(500);
-    
+
     return;
   }
 });
 
 app.post("/status", async (req, res) => {
-  const userHeader = req.headers.user;
+  let userHeader = req.headers.user;
+  userHeader = sanitizeMe(userHeader);
 
   try {
-    
     const users = await db.collection("users").find({}).toArray();
     const userIsOnline = users.some((user) => user.name === userHeader);
     if (!userIsOnline) {
       res.sendStatus(404);
-      
+
       return;
     } else {
       const now = Date.now();
@@ -175,33 +173,40 @@ app.post("/status", async (req, res) => {
 });
 
 app.delete("/messages/:MESSAGE_ID", async (req, res) => {
-  const {user} = req.headers
-  const {MESSAGE_ID} = req.params
-  console.log(MESSAGE_ID, user)
+  let { user } = req.headers;
+  user = sanitizeMe(user);
+  const { MESSAGE_ID } = req.params;
+  console.log(MESSAGE_ID, user);
 
-  const message = await db.collection("messages").findOne({_id: new ObjectId(MESSAGE_ID)});
-  if(!message) {
+  const message = await db
+    .collection("messages")
+    .findOne({ _id: new ObjectId(MESSAGE_ID) });
+  if (!message) {
     res.sendStatus(404);
-    return
+    return;
   } else if (message.from !== user) {
-    res.sendStatus(401)
-    return
+    res.sendStatus(401);
+    return;
   } else {
-    await db.collection("messages").deleteOne({_id: new ObjectId(MESSAGE_ID)})
+    await db
+      .collection("messages")
+      .deleteOne({ _id: new ObjectId(MESSAGE_ID) });
   }
-})
+});
 
-//Está atualizando, mas fica processando requisição infinitamente
 app.put("/messages/:MESSAGE_ID", async (req, res) => {
   const now = Date.now();
   const nowFormattted = dayjs(now).format("HH:mm:ss");
   const body = req.body;
-  const thisUser = req.headers.user;
-  const {MESSAGE_ID} = req.params
+  let thisUser = req.headers.user;
+  thisUser = sanitizeMe(thisUser);
+  const { MESSAGE_ID } = req.params;
   const newMessage = { from: thisUser, ...body, time: nowFormattted };
 
   try {
-    const userSearched = await db.collection("users").findOne({name: thisUser})
+    const userSearched = await db
+      .collection("users")
+      .findOne({ name: thisUser });
     const schema = Joi.object({
       to: Joi.string().required(),
       text: Joi.string().required(),
@@ -213,20 +218,25 @@ app.put("/messages/:MESSAGE_ID", async (req, res) => {
       ...newMessage,
       from: userSearched,
     });
-    if(error !== undefined) {
+    if (error !== undefined) {
       res.status(422).send(error);
       return;
     }
-    const searchMessage = await db.collection("messages").findOne({_id: new ObjectId(MESSAGE_ID)})
-    if(!searchMessage) {
-      res.sendStatus(404)
-      return
+    const searchMessage = await db
+      .collection("messages")
+      .findOne({ _id: new ObjectId(MESSAGE_ID) });
+    if (!searchMessage) {
+      res.sendStatus(404);
+      return;
     }
-    if(searchMessage.from !== thisUser) {
-      res.sendStatus(401)
-      return
+    if (searchMessage.from !== thisUser) {
+      res.sendStatus(401);
+      return;
     }
-    await db.collection("messages").updateOne({_id: new ObjectId(MESSAGE_ID)}, {$set: newMessage})
+    await db
+      .collection("messages")
+      .updateOne({ _id: new ObjectId(MESSAGE_ID) }, { $set: newMessage });
+    res.sendStatus(200);
   } catch (e) {
     console.error(e, "ERROR ON PUT /MESSAGES");
     return;
@@ -237,7 +247,6 @@ setInterval(async () => {
   const now = Date.now();
 
   try {
-    
     const users = await db.collection("users").find({}).toArray();
     const disconnectedUsers = users.filter((user) => {
       if (now - user.lastStatus > 10000) return user;
@@ -251,11 +260,9 @@ setInterval(async () => {
         type: "status",
         time: dayjs(now).format("HH:mm:ss"),
       });
-      
       return;
     });
   } catch (e) {
-    
     console.error(e);
     return;
   }
@@ -264,3 +271,7 @@ setInterval(async () => {
 app.listen(5000, () => {
   console.log("Servidor Iniciado!");
 });
+
+function sanitizeMe(e) {
+  return (e = stripHtml(e).result.trim());
+}
