@@ -6,12 +6,12 @@
     <img src="https://bootcampra.notion.site/image/https%3A%2F%2Fs3-us-west-2.amazonaws.com%2Fsecure.notion-static.com%2F089d96f5-8c2e-451d-be67-56fcedf3670e%2F919fa83bed3698c340186745cb0214b3-removebg-preview.png?table=block&id=88dcf7f3-e5dd-4dc0-a91a-1de8e91a0258&spaceId=f797e032-5eb2-4c9d-beb7-cd7181e19e47&width=250&userId=&cache=v2" alt="Logo" width="100">
   </a>
 
-<h3 align="center">Projeto - Tweteroo</h3>
+<h3 align="center">Projeto - API Batepapo UOL</h3>
   <h4 align="center"> 
 	🚀 Concluído! 🚀
   </h4>
   <p align="center">
-    Construção de uma API destinada à um clone do Twitter
+    Construção de uma API destinada à um clone do Batepapo UOL
     <br />
     <a href="https://github.com/picinelli/projeto-batepapo-uol-api/blob/main/index.js"><strong>Código JS»</strong></a>
 </div>
